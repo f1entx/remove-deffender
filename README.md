@@ -1,65 +1,59 @@
-# Windows Defender Controller (Direct Dual-Binary Engine)
+# remove-defender
 
-Lightweight, high-performance C++ utility designed to completely disable and safely restore Microsoft Windows Defender on Windows 10 and Windows 11 without interactive menus or bloat.
+A high-performance C++ utility designed to completely disable and restore Microsoft Windows Defender on Windows 10 and Windows 11.
 
 ---
 
 ## Overview
 
-The tool provides two dedicated, standalone executables:
+The project consists of two core binaries:
 
-- disable.exe: Elevates to TrustedInstaller, halts Defender components, locks down registry/group policies, and renames protected engine binaries and driver filters to .OLD so Defender cannot load at boot.
-- enable.exe: Reads the restore manifest, reinstates all original binary extensions, restores TrustedInstaller file ownership, clears policy restrictions, and reactivates core security services.
-- build.bat: Automated one-click MSVC x64 build script.
-
----
-
-## Technical Mechanism
-
-1. Privilege Elevation:
-Both executables automatically escalate privileges to NT SERVICE\TrustedInstaller using the Task Scheduler RunEx API (creating a temporary system task WinDefWorkerTask) with a fallback to token duplication. This bypasses access restrictions on core Windows security keys and files.
-
-2. Driver and Engine Soft-Deletion:
-Modern Defender engines run under protected process light (PPL) and early-launch anti-malware (ELAM) drivers, making live termination temporary. The utility soft-deletes the critical files by renaming them to .OLD:
-- WdFilter.sys (Minifilter driver)
-- WdBoot.sys (ELAM boot driver)
-- MsMpEng.exe (Antimalware service executable)
-- MpDefenderCoreService.exe
-All original paths are logged to %ProgramData%\WinDefState\manifest.dat before modification.
-
-3. Subsystem Lockdown:
-- Enforces DisableAntiSpyware and DisableRealtimeMonitoring policies.
-- Deactivates AMSI (Antimalware Scan Interface) and ETW security autologgers.
-- Disables SmartScreen, Exploit Guard, Web Threat Defense, and VBS integrations.
-- Configures IFEO debugger hijacks and Explorer DisallowRun rules.
-- Sets WinDefend, SecurityHealthService, and related services to manual/disabled.
-
-4. Seamless Restoration:
-Running enable.exe parses %ProgramData%\WinDefState\manifest.dat, restores original file names, reassigns ownership back to NT SERVICE\TrustedInstaller, purges registry blocks, and sets WinDefend back to automatic start.
+- disable.exe: Fully disables Windows Defender, halts security subsystems, and renames protected driver filters and engine binaries to prevent them from executing at system boot.
+- enable.exe: Restores all modified files from the saved state manifest, reinstates TrustedInstaller ownership, removes policy restrictions, and starts the services back up.
+- build.bat: Automated build script for compiling from source using MSVC x64.
 
 ---
 
-## Instructions
+## How It Works
+
+1. Privilege Escalation:
+The tool automatically elevates its execution context to NT SERVICE\TrustedInstaller via the Task Scheduler RunEx interface (using the internal task WinDefWorkerTask), ensuring full write permissions over protected system keys, drivers, and services.
+
+2. Binary Soft-Deletion:
+To ensure Windows Defender cannot load after a reboot without requiring Safe Mode:
+- Driver filters (WdFilter.sys, WdBoot.sys) and the engine executable (MsMpEng.exe) are renamed to .OLD.
+- Target paths and metadata are written to %ProgramData%\WinDefState\manifest.dat prior to modification.
+
+3. Policy and Subsystem Lockdown:
+- Sets DisableAntiSpyware and DisableRealtimeMonitoring policies.
+- Disables AMSI, ETW autologgers, SmartScreen, and Exploit Guard integrations.
+- Sets IFEO hijack entries and Explorer DisallowRun configurations.
+- Configures core services (WinDefend, SecurityHealthService) to manual start.
+
+4. Restoration Flow:
+Executing enable.exe reads %ProgramData%\WinDefState\manifest.dat, renames all .OLD files back to their original names, restores file ownership to NT SERVICE\TrustedInstaller, deletes policy locks, and re-enables services.
+
+---
+
+## Usage
 
 ### Disabling Windows Defender
 1. Open Windows Security > Virus & threat protection > Manage settings.
-2. Turn Tamper Protection to OFF.
-3. Turn Real-time protection to OFF.
+2. Set Tamper Protection to OFF.
+3. Set Real-time protection to OFF.
 4. Run disable.exe as Administrator.
-5. Reboot your system. Defender drivers and services will fail to load and remain inactive.
+5. Reboot your system.
 
-### Re-enabling Windows Defender
+### Restoring Windows Defender
 1. Run enable.exe as Administrator.
-2. Reboot your system. All binaries, drivers, registry settings, and services will return to normal operational state.
+2. Reboot your system.
 
-### Silent Mode
-Both binaries accept the -s or --silent flag to suppress console pauses upon completion:
-disable.exe -s
-enable.exe -s
+### Optional Flags
+-s, --silent: Run in silent mode without waiting for a key press at the end.
 
 ---
 
-## Compilation
+## Building from Source
 
-Prerequisites: Visual Studio 2022 / vNext with C++ Desktop Development workload.
-Run build.bat from an elevated or standard command prompt. The script automatically detects the MSVC environment, compiles both targets with static runtime linking (/MT) and maximum speed optimizations (/O2 /GL), and outputs the resulting binaries to the root directory and bin/ folder.
+Requirements: Visual Studio 2022 or higher with C++ Desktop Development tools.
+Run build.bat from a command prompt to build both binaries (x64 Release, static CRT /MT). Output files are placed in the root directory and the bin/ folder.
